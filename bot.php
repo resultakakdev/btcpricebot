@@ -4,17 +4,18 @@ ini_set('display_errors', 1);
 require("functions.php");
 require("exchange.php");
 	$excDataArray = ""; // contains high, low, bid, ask, volume, currency, exchange (no last price - thanks Bitstamp!
-	setSlackToken("put your slack token here");
+	setSlackToken("");
 	setSlackMessage($_POST);
 	setExchangeConfig();
-	
-// commands: troll, price
+	date_default_timezone_set('UTC');
+// commands: !troll, !price, convert
 // parameters: bfx, bs, btce
 
 	$findspace   = ' ';
-	$cmd = substr(getSlackMessageText(), 0, 5); // the command is 5 characters long and always at the beginning of the line.
+	$cmd = substr(getSlackMessageText(), 0, 6); // the command is 5 characters long and always at the beginning of the line.
+	$everythingElse = substr(getSlackMessageText(), 8);
 	$cmd = strtolower($cmd);
-if($cmd == 'price'){
+if($cmd == '!price'){
 	$botname = "BTC Price Bot";
 	$pos = strpos(getSlackMessageText(), $findspace);
 	$exc = trim(substr(getSlackMessageText(), $pos));
@@ -56,7 +57,7 @@ if($cmd == 'price'){
 		$text .= formatOutput($excDataArray, "");
 	}
 	
-} else if($cmd == 'troll'){
+} else if($cmd == '!troll'){
 	$botname = "Mark K. - Professional Goxxer";
 	$randValue = mt_rand(0, 23);
 	$text = "";
@@ -87,6 +88,61 @@ $username = getSlackMessageUserName();
 		case 23: $text = "Frappuccino (noun): A drink known by the world for being consumed by the system administrator of the largest bitcoin exchange on the planet (that's me, bitches). I spilled it on the keyboard of the laptop containing private keys, effectively reducing the bitcoin supply by 7%. This drink may be the sole reason people were goxxed."; break;
 		default: $text = "_Nelson_ ha ha (points at ".$username.")"; break;
 	}
+} else if($cmd == 'conver'){
+	$botname = "Price Conversion Bot";
+	$text = "";
+	$from = strtoupper(substr($everythingElse, 0, 3));
+	$to = "";
+	$number = substr($everythingElse, 4);
+	if($from != "CNY" && $from != "USD"){
+		$text = "Use it like this: convert <CNY-or-USD> <value>. Only CNY and USD supported.";
+	} else {
+		//$text = $everythingElse;
+		// get price information
+		$url = "http://api.fixer.io/latest?base=".$from;
+		$data = file_get_contents($url);
+		$json = json_decode($data,true);
+		if($from == "CNY"){ $to = "USD"; } else { $to = "CNY"; }
+		$rate = $json['rates'][$to];
+		$conversionPrice = $rate*$number;
+		$text = "At conversion rate of ".$rate." ".$to."/".$from.", the price is ".$conversionPrice." ".$to;
+	}
+} else if($cmd == '!bfxlo'){
+	$botname = "BFX Spot Price Calculator";
+	$text = "";
+	$daysUntil = 0;
+	$nextQtrly = "";
+	$time = time(); 
+	$currentDate = getdate();
+	$year = $currentDate['year'];
+
+	if($time > get_date(12, $year, 1, 5, -1)){ // today is after last quarterly close
+		$year = $year+1;
+	}
+
+	if($time > get_date(12, $year-1, 1, 5, -1) && $time < get_date(3, $year, 1, 5, -1)) {
+		$daysUntil = days_until(date(DATE_RFC850,get_date(3, $year, 1, 5, -1)));
+		$nextQtrly = date(DATE_RFC850,get_date(3, $year, 1, 5, -1));
+	}
+
+	if($time > get_date(3, $year, 1, 5, -1) && $time < get_date(6, $year, 1, 5, -1)) {
+		$daysUntil = days_until(date(DATE_RFC850,get_date(6, $year, 1, 5, -1)));
+		$nextQtrly = date(DATE_RFC850,get_date(6, $year, 1, 5, -1));
+	}
+
+	if($time > get_date(6, $year, 1, 5, -1) && $time < get_date(9, $year, 1, 5, -1)) {
+		$daysUntil = days_until(date(DATE_RFC850,get_date(9, $year, 1, 5, -1)));
+		$nextQtrly = date(DATE_RFC850,get_date(9, $year, 1, 5, -1));
+	}
+
+	if($time > get_date(9, $year, 1, 5, -1) && $time < get_date(12, $year, 1, 5, -1)) {
+		$daysUntil = days_until(date(DATE_RFC850,get_date(12, $year, 1, 5, -1)));
+		$nextQtrly = date(DATE_RFC850,get_date(12, $year, 1, 5, -1));
+	}
+	
+	$excDataArray = getLatest('bfx');
+	$newPrice = (1 + (0.0006 * $daysUntil)) * floatval($excDataArray["last"]);
+	$text = "BFX Last: ".$excDataArray["last"].", Next Qtrly: ".$nextQtrly.", Days Til that date: ".$daysUntil.", Calculated: ".$newPrice;
 } else {
 	$text = "Some type of error occured. DEBUG: ".$cmd." length cmd = ".strlen($cmd);
 	$botname = "ERROR";

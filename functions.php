@@ -112,3 +112,25 @@ function formatOutput($array, $exchange){
 	
 	return $text;
 }
+
+function get_date($month, $year, $week, $day, $direction) {
+  if($direction > 0)
+    $startday = 1;
+  else
+    $startday = date('t', mktime(0, 0, 0, $month, 1, $year));
+
+  $start = mktime(0, 0, 0, $month, $startday, $year);
+  $weekday = date('N', $start);
+
+  if($direction * $day >= $direction * $weekday)
+    $offset = -$direction * 7;
+  else
+    $offset = 0;
+
+  $offset += $direction * ($week * 7) + ($day - $weekday);
+  return mktime(0, 0, 0, $month, $startday + $offset, $year);
+}
+
+function days_until($date){
+    return (isset($date)) ? floor((strtotime($date) - time())/60/60/24) : FALSE;
+}
